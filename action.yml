@@ -1,0 +1,46 @@
+name: Composal Verify
+author: ComposalAI
+description: Verify the product journeys affected by a pull request and report issues on GitHub.
+branding:
+  icon: check-circle
+  color: purple
+inputs:
+  token:
+    description: Composal API token. Store it in a GitHub Actions secret.
+    required: true
+  org:
+    description: Composal organization slug.
+    required: true
+  preview-url:
+    description: URL deployed from this PR head. Omit when Composal deploys or discovers the preview.
+  environment:
+    description: Ready Verify preview environment slug, instead of preview-url.
+  repository:
+    description: Composal repository slug. Defaults to the GitHub repository name.
+  pr:
+    description: PR number. Inferred from pull_request or a single-PR workflow_run event.
+  sha:
+    description: Exact deployed PR head SHA. Inferred from the PR event, never the merge commit.
+  wait:
+    description: Wait for verification results and fail on unsuccessful outcomes.
+    default: 'true'
+  timeout:
+    description: Maximum minutes to wait. Verification continues if the action times out.
+    default: '15'
+  api-url:
+    description: Composal API origin.
+    default: https://composal.ai
+outputs:
+  url:
+    description: Link to this PR's verification history.
+  pull-request-id:
+    description: Composal PR identity.
+  run-id:
+    description: This verification request's identity.
+  sweep-id:
+    description: Browser sweep identity, when started.
+  status:
+    description: Verification state or terminal outcome. queued means accepted, not passed.
+runs:
+  using: node24
+  main: index.mjs
