@@ -15,12 +15,15 @@ inputs:
     description: URL deployed from this PR head. Omit when Composal deploys or discovers the preview.
   environment:
     description: Ready Verify preview environment slug, instead of preview-url.
-  repository:
-    description: Composal repository slug. Defaults to the GitHub repository name.
+  project:
+    description: Composal project slug or ID. Configure its source connection in the project's PR Testing page.
+    required: true
   pr:
-    description: PR number. Inferred from pull_request or a single-PR workflow_run event.
+    description: Optional PR number. Inferred from pull_request or a single-PR workflow_run event. Supply pr or branch.
+  branch:
+    description: Optional deployed source branch. Inferred from PR, workflow_run, or push context. Registers a project preview even without an open PR.
   sha:
-    description: Exact deployed PR head SHA. Inferred from the PR event, never the merge commit.
+    description: Exact deployed source SHA. Inferred from the PR head or branch push, never a PR merge commit.
   wait:
     description: Wait for verification results and fail on unsuccessful outcomes.
     default: 'true'
@@ -41,6 +44,8 @@ outputs:
     description: Browser sweep identity, when started.
   status:
     description: Verification state or terminal outcome. queued means accepted, not passed.
+  environment-id:
+    description: Registered Verify environment identity for a branch preview without an open PR.
 runs:
   using: node24
   main: index.mjs
