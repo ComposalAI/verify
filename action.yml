@@ -15,10 +15,9 @@ inputs:
     description: URL deployed from this PR head. Omit when Composal deploys or discovers the preview.
   environment:
     description: Ready Verify preview environment slug, instead of preview-url.
-  repository:
-    description: Composal repository slug. Defaults to the GitHub repository name.
   project:
-    description: Composal project slug or ID for PR preview environments. Defaults to the configured template's project.
+    description: Composal project slug or ID. Configure its source connection in the project's PR Testing page.
+    required: true
   pr:
     description: Optional PR number. Inferred from pull_request or a single-PR workflow_run event. Supply pr or branch.
   branch:

@@ -10,7 +10,6 @@ const inputs = Object.fromEntries(
     'org',
     'preview-url',
     'environment',
-    'repository',
     'project',
     'pr',
     'branch',

@@ -28,6 +28,8 @@ export function configuration(inputs, event, context) {
     (!number && context.refType === 'branch' ? context.refName : undefined)
   if (!inputs.token) throw new Error('Set token to a Composal API token stored as a CI secret.')
   if (!inputs.org) throw new Error('Set org to your Composal organization slug.')
+  if (!inputs.project && context.provider !== 'gitlab')
+    throw new Error('Set project to your Composal project slug or ID.')
   if (
     (rawNumber && (!Number.isSafeInteger(number) || number < 1)) ||
     (!number && !branch) ||
@@ -56,9 +58,6 @@ export function configuration(inputs, event, context) {
   const minutes = Number(inputs.timeout || '15')
   if (!['true', 'false'].includes(wait) || !Number.isFinite(minutes) || minutes < 1 || minutes > 60)
     throw new Error('wait must be true or false; timeout must be between 1 and 60 minutes.')
-  const repository =
-    inputs.repository || event.repository?.name || context.repository?.split('/').at(-1)
-  if (!repository) throw new Error('Set repository to the connected Composal repository slug.')
   const key = createHash('sha256')
     .update(
       JSON.stringify([
@@ -76,8 +75,8 @@ export function configuration(inputs, event, context) {
   return {
     token: inputs.token,
     org: inputs.org,
-    repository,
     project: inputs.project,
+    ...(context.provider === 'gitlab' ? { repository: inputs.repository } : {}),
     branch,
     number,
     sha,
@@ -131,7 +130,7 @@ export async function verify(
         const hints = {
           401: 'Check the Composal token.',
           403: 'The token needs administrator access to this organization.',
-          404: 'Check the org, repository, and verification setup.',
+          404: 'Check the org, project, and project PR Testing setup.',
           409: 'The request changed or this preview handoff conflicts with an earlier request.',
         }
         // Do not echo response bodies: they can contain credentials or preview URL query strings.
@@ -147,7 +146,7 @@ export async function verify(
     }
   }
   const pr = await api(requests, {
-    repository_id: config.repository,
+    ...(config.provider === 'gitlab' ? { repository_id: config.repository } : {}),
     ...(config.number ? { number: config.number } : {}),
     head_sha: config.sha,
     ...(config.project ? { project_id: config.project } : {}),
@@ -191,7 +190,7 @@ export async function verify(
   if (!pr.requested_run_id) return outputs // Registered branch preview, draft or closed PR.
   if (config.previewUrl || config.environment) {
     const run = await api(`${requests}/preview`, {
-      repository_id: config.repository,
+      ...(config.provider === 'gitlab' ? { repository_id: config.repository } : {}),
       number: pr.number || config.number,
       head_sha: config.sha,
       ...(config.project ? { project_id: config.project } : {}),
