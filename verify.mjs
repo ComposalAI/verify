@@ -4,16 +4,36 @@ export function configuration(inputs, event, context) {
   const pr =
     event.pull_request ??
     (event.workflow_run?.pull_requests?.length === 1 ? event.workflow_run.pull_requests[0] : null)
-  const number = Number(String(inputs.pr || pr?.number || '').replace(/^#/, ''))
-  if (!inputs.sha && event.workflow_run?.head_sha && pr?.head?.sha &&
-      event.workflow_run.head_sha !== pr.head.sha) {
-    throw new Error('workflow_run has different workflow and PR head SHAs. Set sha to the exact commit deployed.')
+  const rawNumber = String(inputs.pr || pr?.number || '').replace(/^#/, '')
+  const number = rawNumber ? Number(rawNumber) : undefined
+  if (
+    !inputs.sha &&
+    event.workflow_run?.head_sha &&
+    pr?.head?.sha &&
+    event.workflow_run.head_sha !== pr.head.sha
+  ) {
+    throw new Error(
+      'workflow_run has different workflow and PR head SHAs. Set sha to the exact commit deployed.'
+    )
   }
-  const sha = inputs.sha || pr?.head?.sha || event.workflow_run?.head_sha
-  if (!inputs.token) throw new Error('Set token to a Composal API token stored in a GitHub secret.')
+  const sha =
+    inputs.sha ||
+    pr?.head?.sha ||
+    event.workflow_run?.head_sha ||
+    (context.eventName === 'push' && context.refType === 'branch' ? context.sha : undefined)
+  const branch =
+    inputs.branch ||
+    pr?.head?.ref ||
+    event.workflow_run?.head_branch ||
+    (!number && context.refType === 'branch' ? context.refName : undefined)
+  if (!inputs.token) throw new Error('Set token to a Composal API token stored as a CI secret.')
   if (!inputs.org) throw new Error('Set org to your Composal organization slug.')
-  if (!Number.isSafeInteger(number) || number < 1 || !/^[0-9a-f]{40,64}$/.test(sha ?? '')) {
-    throw new Error('Run on a PR event, or supply pr and sha for the exact deployed PR head.')
+  if (
+    (rawNumber && (!Number.isSafeInteger(number) || number < 1)) ||
+    (!number && !branch) ||
+    !/^[0-9a-f]{40,64}$/.test(sha ?? '')
+  ) {
+    throw new Error('Supply a PR number or source branch and the exact deployed source commit.')
   }
   if (inputs['preview-url'] && inputs.environment)
     throw new Error('Supply preview-url or environment, not both.')
@@ -47,6 +67,8 @@ export function configuration(inputs, event, context) {
         context.runAttempt,
         context.job,
         number,
+        inputs.project,
+        branch,
         sha,
       ])
     )
@@ -55,6 +77,8 @@ export function configuration(inputs, event, context) {
     token: inputs.token,
     org: inputs.org,
     repository,
+    project: inputs.project,
+    branch,
     number,
     sha,
     previewUrl: inputs['preview-url'],
@@ -75,6 +99,7 @@ export async function verify(
     publish = () => {},
   } = {}
 ) {
+  const requests = config.provider === 'gitlab' ? '/merge_requests' : '/pull_requests'
   const root = `${config.base}/api/v1/organizations/${encodeURIComponent(config.org)}/verify`
   async function api(path, body) {
     for (let attempt = 0; ; attempt++) {
@@ -106,12 +131,12 @@ export async function verify(
         const hints = {
           401: 'Check the Composal token.',
           403: 'The token needs administrator access to this organization.',
-          404: 'Check the org, repository, and PR verification setup.',
-          409: 'The PR changed or this preview handoff conflicts with an earlier request.',
+          404: 'Check the org, repository, and verification setup.',
+          409: 'The request changed or this preview handoff conflicts with an earlier request.',
         }
         // Do not echo response bodies: they can contain credentials or preview URL query strings.
         throw new Error(
-          `Composal returned HTTP ${response.status}. ${hints[response.status] || 'Check the PR preview configuration and supplied inputs.'}`
+          `Composal returned HTTP ${response.status}. ${hints[response.status] || 'Check the preview configuration and supplied inputs.'}`
         )
       }
       try {
@@ -121,10 +146,13 @@ export async function verify(
       }
     }
   }
-  const pr = await api('/pull_requests', {
+  const pr = await api(requests, {
     repository_id: config.repository,
-    number: config.number,
+    ...(config.number ? { number: config.number } : {}),
     head_sha: config.sha,
+    ...(config.project ? { project_id: config.project } : {}),
+    ...(config.branch ? { branch: config.branch } : {}),
+    ...(!config.number && config.previewUrl ? { preview_url: config.previewUrl } : {}),
     idempotency_key: config.key,
   })
   if (
@@ -137,22 +165,37 @@ export async function verify(
     )
   if (pr.head_sha !== config.sha)
     throw new Error('The workflow commit is no longer the current PR head.')
+  if (
+    config.project &&
+    pr.project_id !== config.project &&
+    pr.project_slug !== config.project.toLowerCase()
+  )
+    throw new Error(
+      'Composal did not assign the preview to the requested project. Update its preview API.'
+    )
+  if (config.branch && pr.source_branch !== config.branch)
+    throw new Error(
+      'Composal did not confirm the deployed source branch. Check the branch and preview API version.'
+    )
   const url = new URL(pr.web_path, config.base)
   if (url.origin !== config.base) throw new Error('Composal returned an invalid verification URL.')
   const outputs = {
     url: url.href,
-    'pull-request-id': pr.id,
+    'pull-request-id': pr.id || '',
     'run-id': pr.requested_run_id || '',
     'sweep-id': '',
-    status: pr.requested_run_id ? 'queued' : 'skipped',
+    status: pr.requested_run_id ? 'queued' : pr.status || 'skipped',
+    'environment-id': pr.environment_id || '',
   }
   await publish(outputs)
-  if (!pr.requested_run_id) return outputs // Draft or closed PR; no browser run was requested.
+  if (!pr.requested_run_id) return outputs // Registered branch preview, draft or closed PR.
   if (config.previewUrl || config.environment) {
-    const run = await api('/pull_requests/preview', {
+    const run = await api(`${requests}/preview`, {
       repository_id: config.repository,
-      number: config.number,
+      number: pr.number || config.number,
       head_sha: config.sha,
+      ...(config.project ? { project_id: config.project } : {}),
+      ...(config.branch ? { branch: config.branch } : {}),
       ...(config.previewUrl
         ? { preview_url: config.previewUrl }
         : { environment: config.environment }),
@@ -167,7 +210,7 @@ export async function verify(
   const deadline = now() + config.timeoutMs
   const active = new Set(['queued', 'waiting_for_preview', 'running', 'cancelling', 'terminal'])
   while (now() < deadline) {
-    const page = await api(`/pull_requests/${encodeURIComponent(pr.id)}`)
+    const page = await api(`${requests}/${encodeURIComponent(pr.id)}`)
     const run = page.runs.find((candidate) => candidate.id === pr.requested_run_id)
     if (
       !run ||

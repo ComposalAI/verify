@@ -8,7 +8,10 @@ import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 
 const sha = '2'.repeat(40)
-const event = { repository: { name: 'shop' }, pull_request: { number: 45, head: { sha } } }
+const event = {
+  repository: { name: 'shop' },
+  pull_request: { number: 45, head: { sha, ref: 'fix/checkout' } },
+}
 const context = { repository: 'example/shop', runId: '123', runAttempt: '1', job: 'verify' }
 const config = (inputs = {}, payload = event) =>
   configuration({ token: 'private-token', org: 'acme', ...inputs }, payload, context)
@@ -17,6 +20,9 @@ const pr = {
   head_sha: sha,
   web_path: '/acme/verify/pull-requests/vpr_1',
   requested_run_id: 'vprun_1',
+  project_id: 'project_storefront',
+  project_slug: 'storefront',
+  source_branch: 'fix/checkout',
 }
 const run = (status = 'passed') => ({
   id: 'vprun_1',
@@ -42,6 +48,7 @@ test('infers PR head rather than GitHub merge SHA and uses stable retry keys', (
   assert.equal(first.number, 45)
   assert.equal(first.sha, sha)
   assert.equal(first.repository, 'shop')
+  assert.equal(first.branch, 'fix/checkout')
   assert.equal(first.key, config().key)
   assert.notEqual(
     first.key,
@@ -64,11 +71,85 @@ test('infers PR head rather than GitHub merge SHA and uses stable retry keys', (
 })
 
 test('conflicting workflow and PR commits require an explicit deployed SHA', () => {
-  const workflowEvent = { repository: event.repository, workflow_run: {
-    head_sha: '3'.repeat(40), pull_requests: [{ number: 45, head: { sha } }],
-  } }
+  const workflowEvent = {
+    repository: event.repository,
+    workflow_run: {
+      head_sha: '3'.repeat(40),
+      pull_requests: [{ number: 45, head: { sha } }],
+    },
+  }
   assert.throws(() => config({}, workflowEvent), /exact commit deployed/)
   assert.equal(config({ sha }, workflowEvent).sha, sha)
+})
+
+test('accepts explicit project, PR and branch and infers workflow_run source branches', () => {
+  const explicit = config({ project: 'storefront', pr: '46', branch: 'fix/payments', sha }, {})
+  assert.equal(explicit.project, 'storefront')
+  assert.equal(explicit.number, 46)
+  assert.equal(explicit.branch, 'fix/payments')
+  assert.equal(
+    config(
+      {},
+      {
+        workflow_run: {
+          head_sha: sha,
+          head_branch: 'fix/payments',
+          pull_requests: [{ number: 46 }],
+        },
+      }
+    ).branch,
+    'fix/payments'
+  )
+})
+
+test('branch-only pushes infer the deployed commit and register previews without a PR', async () => {
+  const branchConfig = configuration(
+    {
+      token: 'private-token',
+      org: 'acme',
+      project: 'storefront',
+      'preview-url': 'https://branch.preview.test',
+    },
+    {},
+    { ...context, eventName: 'push', refType: 'branch', refName: 'fix/payments', sha }
+  )
+  assert.equal(branchConfig.number, undefined)
+  assert.equal(branchConfig.branch, 'fix/payments')
+  assert.equal(branchConfig.sha, sha)
+  const api = transport([
+    {
+      id: null,
+      number: null,
+      requested_run_id: null,
+      head_sha: sha,
+      status: 'preview_registered',
+      project_slug: 'storefront',
+      source_branch: 'fix/payments',
+      environment_id: 'venv_branch',
+      web_path: '/acme/verify/storefront/environments/venv_branch',
+    },
+  ])
+  const result = await verify(branchConfig, api)
+  assert.equal(api.calls.length, 1)
+  assert.equal(api.calls[0].body.number, undefined)
+  assert.equal(api.calls[0].body.preview_url, 'https://branch.preview.test')
+  assert.equal(result.status, 'preview_registered')
+  assert.equal(result['environment-id'], 'venv_branch')
+  assert.equal(result['run-id'], '')
+})
+
+test('branch selectors resolve an open PR before handing off its URL', async () => {
+  const api = transport([{ ...pr, number: 45, source_branch: 'fix/payments' }, run('queued')])
+  const result = await verify(
+    config(
+      { branch: 'fix/payments', sha, 'preview-url': 'https://branch.preview.test', wait: 'false' },
+      {}
+    ),
+    api
+  )
+  assert.equal(api.calls[0].body.number, undefined)
+  assert.equal(api.calls[1].body.number, 45)
+  assert.equal(result.status, 'queued')
 })
 
 test('validates input authority and refuses ambiguous or missing PR context', () => {
@@ -100,13 +181,20 @@ test('hands a deployed URL to the exact request, waits, and publishes the sweep 
     { pull_request: pr, runs: [run()] },
   ])
   const updates = []
-  const result = await verify(config({ 'preview-url': 'https://pr-45.preview.test' }), {
-    ...api,
-    sleep: async () => {},
-    publish: (value) => updates.push({ ...value }),
-  })
+  const result = await verify(
+    config({ project: 'storefront', 'preview-url': 'https://pr-45.preview.test' }),
+    {
+      ...api,
+      sleep: async () => {},
+      publish: (value) => updates.push({ ...value }),
+    }
+  )
   assert.equal(api.calls[0].body.head_sha, sha)
   assert.equal(api.calls[0].body.number, 45)
+  assert.equal(api.calls[0].body.project_id, 'storefront')
+  assert.equal(api.calls[0].body.branch, 'fix/checkout')
+  assert.equal(api.calls[1].body.project_id, 'storefront')
+  assert.equal(api.calls[1].body.branch, 'fix/checkout')
   assert.equal(api.calls[1].body.preview_url, 'https://pr-45.preview.test')
   assert.equal(api.calls[1].body.head_sha, sha)
   assert.equal(api.calls[0].headers.Authorization, 'Bearer private-token')
@@ -132,6 +220,17 @@ test('configured managed previews need only one request when wait is false', asy
   const api = transport([pr])
   assert.equal((await verify(config({ wait: 'false' }), api)).status, 'queued')
   assert.equal(api.calls.length, 1)
+})
+
+test('refuses APIs that silently ignore the project or deployed branch', async () => {
+  await assert.rejects(
+    verify(config({ project: 'another-project' }), transport([pr])),
+    /requested project/
+  )
+  await assert.rejects(
+    verify(config(), transport([{ ...pr, source_branch: undefined }])),
+    /source branch/
+  )
 })
 
 test('drafts do not attempt a preview handoff', async () => {
@@ -232,6 +331,8 @@ test('entrypoint reads Actions inputs, writes outputs and summary, and masks the
           ...process.env,
           INPUT_TOKEN: 'private-token',
           INPUT_ORG: 'acme',
+          INPUT_PROJECT: 'storefront',
+          INPUT_BRANCH: 'fix/checkout',
           INPUT_WAIT: 'false',
           GITHUB_EVENT_PATH: eventPath,
           GITHUB_OUTPUT: outputPath,

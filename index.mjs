@@ -11,7 +11,9 @@ const inputs = Object.fromEntries(
     'preview-url',
     'environment',
     'repository',
+    'project',
     'pr',
+    'branch',
     'sha',
     'wait',
     'timeout',
@@ -27,6 +29,10 @@ try {
     runId: process.env.GITHUB_RUN_ID,
     runAttempt: process.env.GITHUB_RUN_ATTEMPT,
     job: process.env.GITHUB_JOB,
+    eventName: process.env.GITHUB_EVENT_NAME,
+    refType: process.env.GITHUB_REF_TYPE,
+    refName: process.env.GITHUB_REF_NAME,
+    sha: process.env.GITHUB_SHA,
   })
   outputs = await verify(config, {
     publish: async (values) => {
@@ -47,9 +53,10 @@ try {
 } finally {
   if (outputs && process.env.GITHUB_STEP_SUMMARY) {
     const status = outputs.status.replace(/[^a-z_]/g, '')
+    const label = outputs['pull-request-id'] ? 'PR verification history' : 'Preview environment'
     await appendFile(
       process.env.GITHUB_STEP_SUMMARY,
-      `### Composal Verify\n\n**${status}** · [PR verification history](${outputs.url})\n\nFindings, recordings, and feedback are available in Verify and the GitHub results comment.\n`
+      `### Composal Verify\n\n**${status}** · [${label}](${outputs.url})\n\n${outputs['pull-request-id'] ? 'Findings, recordings, and feedback are available in Verify and the GitHub results comment.' : 'The branch preview is registered in your project. No PR verification run was requested.'}\n`
     )
   }
 }
