@@ -40,8 +40,8 @@ outputs:
     description: Composal PR identity.
   run-id:
     description: This verification request's identity.
-  sweep-id:
-    description: Browser sweep identity, when started.
+  test-run-id:
+    description: Grouped scenario Run identity, when started.
   status:
     description: Verification state or terminal outcome. queued means accepted, not passed.
   environment-id:

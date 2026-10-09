@@ -182,7 +182,7 @@ export async function verify(
     url: url.href,
     'pull-request-id': pr.id || '',
     'run-id': pr.requested_run_id || '',
-    'sweep-id': '',
+    'test-run-id': '',
     status: pr.requested_run_id ? 'queued' : pr.status || 'skipped',
     'environment-id': pr.environment_id || '',
   }
@@ -202,12 +202,20 @@ export async function verify(
     if (run.id !== pr.requested_run_id)
       throw new Error('A newer verification request superseded this handoff.')
     outputs.status = run.display_state
-    outputs['sweep-id'] = run.verify_sweep_id || ''
+    outputs['test-run-id'] = run.run_id || ''
     await publish(outputs)
   }
   if (!config.wait) return outputs
   const deadline = now() + config.timeoutMs
-  const active = new Set(['queued', 'waiting_for_preview', 'running', 'cancelling', 'terminal'])
+  const active = new Set([
+    'queued',
+    'waiting_for_preview',
+    'preparing',
+    'prepared',
+    'running',
+    'cancelling',
+    'terminal',
+  ])
   while (now() < deadline) {
     const page = await api(`${requests}/${encodeURIComponent(pr.id)}`)
     const run = page.runs.find((candidate) => candidate.id === pr.requested_run_id)
@@ -219,7 +227,7 @@ export async function verify(
     )
       throw new Error('A newer PR revision or verification request superseded this run.')
     outputs.status = run.display_state
-    outputs['sweep-id'] = run.verify_sweep_id || ''
+    outputs['test-run-id'] = run.run_id || ''
     await publish(outputs)
     if (!active.has(outputs.status)) {
       if (!['passed', 'skipped'].includes(outputs.status))
