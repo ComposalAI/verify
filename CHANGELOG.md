@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
+
+- Track one grouped saved-Scenario Run with `test-run-id`, replacing retired sweep IDs.
+- Wait through scenario preparation and approval before evaluating results.
+- Document saved YAML Scenarios as the repeatable PR testing rules and report cleanup separately.
 
 - Assign preview URLs to a Composal project and track the PR number or source branch.
 - Auto-detect PR, workflow-run, and branch-push context; register branch previews even before an open PR exists.

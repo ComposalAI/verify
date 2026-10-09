@@ -32,7 +32,7 @@ const run = (status = 'passed') => ({
   id: 'vprun_1',
   head_sha: sha,
   display_state: status,
-  verify_sweep_id: 'vsweep_1',
+  run_id: 'run_grouped_1',
 })
 function transport(responses) {
   const calls = []
@@ -180,10 +180,13 @@ test('validates input authority and refuses ambiguous or missing PR context', ()
   assert.equal(config({ pr: '#45', sha }, {}).number, 45)
 })
 
-test('hands a deployed URL to the exact request, waits, and publishes the sweep link', async () => {
+test('hands a deployed URL to the exact request, waits, and publishes the grouped run identity', async () => {
   const api = transport([
     pr,
     run('waiting_for_preview'),
+    { pull_request: pr, runs: [run('preparing')] },
+    { pull_request: pr, runs: [run('prepared')] },
+    { pull_request: pr, runs: [run('queued')] },
     { pull_request: pr, runs: [run('running')] },
     { pull_request: pr, runs: [run()] },
   ])
@@ -209,11 +212,11 @@ test('hands a deployed URL to the exact request, waits, and publishes the sweep 
   assert.equal(api.calls[0].headers.Authorization, 'Bearer private-token')
   assert.equal(api.calls[0].redirect, 'error')
   assert.equal(result.status, 'passed')
-  assert.equal(result['sweep-id'], 'vsweep_1')
+  assert.equal(result['test-run-id'], 'run_grouped_1')
   assert.equal(result.url, 'https://composal.ai/acme/verify/pull-requests/vpr_1')
   assert.deepEqual(
     updates.map((value) => value.status),
-    ['queued', 'waiting_for_preview', 'running', 'passed']
+    ['queued', 'waiting_for_preview', 'preparing', 'prepared', 'queued', 'running', 'passed']
   )
 })
 

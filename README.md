@@ -11,7 +11,7 @@ Test the product journeys affected by your PR against its deployed preview. Veri
     preview-url: ${{ steps.deploy.outputs.url }}
 ```
 
-Configure the Composal project in **Verify → Projects → your project → PR Testing**. Select its source repository and **Your CI**, your scenario pack, and an external Verify environment template containing your personas and safety policy. Add a Composal administrator API token as the `COMPOSAL_TOKEN` Actions secret and your organization slug as the `COMPOSAL_ORG` variable.
+Configure the Composal project in **Verify → Projects → your project → PR Testing**. Select its source repository, **Your CI**, and an external Verify environment template containing your personas and safety policy. Verify selects relevant saved YAML Scenarios from that project and launches them together in one parallel Run. Add a Composal administrator API token as the `COMPOSAL_TOKEN` Actions secret and your organization slug as the `COMPOSAL_ORG` variable.
 
 Run this step after deploying **`github.event.pull_request.head.sha`** and waiting for the preview to become reachable. GitHub's `github.sha` can be a synthetic merge commit; Verify deliberately uses the PR head. Your existing deployment provider supplies the URL; this action does not build an arbitrary app.
 
@@ -98,7 +98,7 @@ jobs:
 
 The fork condition avoids running a secret-dependent step when GitHub withholds secrets. Keep your deployment and secret use on trusted workflow events; do not switch to `pull_request_target` just to expose secrets to fork code.
 
-By default the action waits up to 15 minutes. Passed or explicitly skipped requests succeed. Failed, blocked, cancelled, superseded, cleanup-blocked, and timed-out requests fail the step. A wait timeout also fails the step, with a link to the run that continues in Composal. Set `wait: 'false'` for an asynchronous handoff; a successful handoff means accepted, not passed.
+By default the action waits up to 15 minutes. Passed or explicitly skipped requests succeed. Failed, blocked, cancelled, superseded, and timed-out scenario outcomes fail the step. Cleanup is reported separately and does not turn a passing product outcome into a failure. A wait timeout also fails the step, with a link to the run that continues in Composal. Set `wait: 'false'` for an asynchronous handoff; a successful handoff means accepted, not passed.
 
 ## Inputs and outputs
 
@@ -116,7 +116,7 @@ By default the action waits up to 15 minutes. Passed or explicitly skipped reque
 | `timeout`     | `'15'`                 | Wait limit in minutes, between 1 and 60. Set the job timeout higher.                                             |
 | `api-url`     | `https://composal.ai`  | HTTPS API origin, for installations using another endpoint.                                                      |
 
-Outputs: `url` (PR history or registered branch environment), `pull-request-id`, `run-id`, `sweep-id` (when started), `environment-id` (branch registration), and `status`. The workflow summary links to the full results. Critical/high issue recordings remain authenticated links in Verify.
+Outputs: `url` (PR history or registered branch environment), `pull-request-id`, `run-id`, `test-run-id` (when started), `environment-id` (branch registration), and `status`. The workflow summary links to the full results. Critical/high issue recordings remain authenticated links in Verify.
 
 Retries within the same workflow attempt reuse the same verification request. Rerunning the workflow creates a fresh request. A workflow for an obsolete head cannot start a run for the newer head.
 
