@@ -52,7 +52,7 @@ test('infers PR head rather than GitHub merge SHA and uses stable retry keys', (
   assert.equal(first.number, 45)
   assert.equal(first.sha, sha)
   assert.equal(first.project, 'storefront')
-  assert.equal(first.repository, undefined)
+  assert.equal(first.repository, 'example/shop')
   assert.equal(first.branch, 'fix/checkout')
   assert.equal(first.key, config().key)
   assert.notEqual(
@@ -202,10 +202,10 @@ test('hands a deployed URL to the exact request, waits, and publishes the groupe
   assert.equal(api.calls[0].body.head_sha, sha)
   assert.equal(api.calls[0].body.number, 45)
   assert.equal(api.calls[0].body.project_id, 'storefront')
-  assert.equal('repository_id' in api.calls[0].body, false)
+  assert.equal(api.calls[0].body.repository_id, 'example/shop')
   assert.equal(api.calls[0].body.branch, 'fix/checkout')
   assert.equal(api.calls[1].body.project_id, 'storefront')
-  assert.equal('repository_id' in api.calls[1].body, false)
+  assert.equal(api.calls[1].body.repository_id, 'example/shop')
   assert.equal(api.calls[1].body.branch, 'fix/checkout')
   assert.equal(api.calls[1].body.preview_url, 'https://pr-45.preview.test')
   assert.equal(api.calls[1].body.head_sha, sha)
@@ -368,5 +368,5 @@ test('entrypoint reads Actions inputs, writes outputs and summary, and masks the
 test('requires a Composal project and never infers it from a GitHub repository', () => {
   assert.throws(() => config({ project: '' }), /Set project/)
   assert.equal(config({ repository: 'ignored-repository' }).project, 'storefront')
-  assert.equal(config({ repository: 'ignored-repository' }).repository, undefined)
+  assert.equal(config({ repository: 'ignored-repository' }).repository, 'example/shop')
 })
