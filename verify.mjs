@@ -76,7 +76,7 @@ export function configuration(inputs, event, context) {
     token: inputs.token,
     org: inputs.org,
     project: inputs.project,
-    ...(context.provider === 'gitlab' ? { repository: inputs.repository } : {}),
+    repository: context.provider === 'gitlab' ? inputs.repository : context.repository,
     branch,
     number,
     sha,
@@ -146,7 +146,7 @@ export async function verify(
     }
   }
   const pr = await api(requests, {
-    ...(config.provider === 'gitlab' ? { repository_id: config.repository } : {}),
+    repository_id: config.repository,
     ...(config.number ? { number: config.number } : {}),
     head_sha: config.sha,
     ...(config.project ? { project_id: config.project } : {}),
@@ -190,7 +190,7 @@ export async function verify(
   if (!pr.requested_run_id) return outputs // Registered branch preview, draft or closed PR.
   if (config.previewUrl || config.environment) {
     const run = await api(`${requests}/preview`, {
-      ...(config.provider === 'gitlab' ? { repository_id: config.repository } : {}),
+      repository_id: config.repository,
       number: pr.number || config.number,
       head_sha: config.sha,
       ...(config.project ? { project_id: config.project } : {}),
