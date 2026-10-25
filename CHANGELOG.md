@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1
+
+- Use composal.com by default while preserving explicit legacy and custom API origins.
+
 ## 1.1.0
 
 - Track one grouped saved-Scenario Run with `test-run-id`, replacing retired sweep IDs.

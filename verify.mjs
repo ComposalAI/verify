@@ -44,7 +44,7 @@ export function configuration(inputs, event, context) {
     if (!['https:', 'http:'].includes(preview.protocol) || preview.username || preview.password)
       throw new Error('preview-url must be an HTTP(S) URL without embedded credentials.')
   }
-  const base = new URL(inputs['api-url'] || 'https://composal.ai')
+  const base = new URL(inputs['api-url'] || 'https://composal.com')
   if (
     base.protocol !== 'https:' ||
     base.username ||

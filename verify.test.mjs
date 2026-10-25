@@ -213,7 +213,7 @@ test('hands a deployed URL to the exact request, waits, and publishes the groupe
   assert.equal(api.calls[0].redirect, 'error')
   assert.equal(result.status, 'passed')
   assert.equal(result['test-run-id'], 'run_grouped_1')
-  assert.equal(result.url, 'https://composal.ai/acme/verify/pull-requests/vpr_1')
+  assert.equal(result.url, 'https://composal.com/acme/verify/pull-requests/vpr_1')
   assert.deepEqual(
     updates.map((value) => value.status),
     ['queued', 'waiting_for_preview', 'preparing', 'prepared', 'queued', 'running', 'passed']
@@ -369,4 +369,11 @@ test('requires a Composal project and never infers it from a GitHub repository',
   assert.throws(() => config({ project: '' }), /Set project/)
   assert.equal(config({ repository: 'ignored-repository' }).project, 'storefront')
   assert.equal(config({ repository: 'ignored-repository' }).repository, undefined)
+})
+
+
+test('explicit legacy and custom API origins remain authoritative', () => {
+  for (const base of ['https://composal.ai', 'https://private.example']) {
+    assert.equal(config({ 'api-url': base }).base, base)
+  }
 })

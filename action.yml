@@ -32,7 +32,7 @@ inputs:
     default: '15'
   api-url:
     description: Composal API origin.
-    default: https://composal.ai
+    default: https://composal.com
 outputs:
   url:
     description: Link to this PR's verification history.

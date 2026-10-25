@@ -114,7 +114,7 @@ By default the action waits up to 15 minutes. Passed or explicitly skipped reque
 | `sha`         | PR head or branch push | Full deployed commit SHA. PR heads and branch pushes are inferred; supply it for other event types.              |
 | `wait`        | `'true'`               | Wait for results; `'false'` only requests verification.                                                          |
 | `timeout`     | `'15'`                 | Wait limit in minutes, between 1 and 60. Set the job timeout higher.                                             |
-| `api-url`     | `https://composal.ai`  | HTTPS API origin, for installations using another endpoint.                                                      |
+| `api-url`     | `https://composal.com`  | HTTPS API origin, for installations using another endpoint.                                                      |
 
 Outputs: `url` (PR history or registered branch environment), `pull-request-id`, `run-id`, `test-run-id` (when started), `environment-id` (branch registration), and `status`. The workflow summary links to the full results. Critical/high issue recordings remain authenticated links in Verify.
 
@@ -129,13 +129,13 @@ The `1` tag is the supported major release. To publish an update from the Vex mo
 ## GitLab CI
 
 For GitLab.com merge request pipelines, include
-`https://composal.ai/ci/verify/v1/gitlab.yml` and extend `.composal-verify`
+`https://composal.com/ci/verify/v1/gitlab.yml` and extend `.composal-verify`
 after your preview deployment. The copyable configuration in your project’s PR
 Testing includes direct MR pipeline rules and the connected Composal repo slug.
 The helper reads GitLab's IID and source SHA, hands off the exact preview, waits
 for its own verification run, and writes safe result IDs/links to
 `composal-verify.json`.
 
-See [GitLab setup and CI variables](https://composal.ai/docs/verify/source-control/gitlab#gitlab-ci)
+See [GitLab setup and CI variables](https://composal.com/docs/verify/source-control/gitlab#gitlab-ci)
 for dotenv handoff, fork and synthetic-commit restrictions, merge protection,
 and CLI/API examples.
